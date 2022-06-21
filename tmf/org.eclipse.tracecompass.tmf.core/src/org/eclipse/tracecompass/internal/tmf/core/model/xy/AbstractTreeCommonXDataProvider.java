@@ -67,6 +67,23 @@ public abstract class AbstractTreeCommonXDataProvider<A extends TmfStateSystemAn
         super(trace, analysisModule);
     }
 
+    /**
+     * Extract boolean value from a map of parameters
+     *
+     * @param parameters
+     *            Map of parameters
+     * @param key
+     *            Parameter key for the value to extract
+     * @return boolean value for this key or null if it fails to extract
+     */
+    private static @Nullable Boolean extractBoolean(Map<String, Object> parameters, String key) {
+        Object booleanObject = parameters.get(key);
+        if (booleanObject instanceof Boolean) {
+            return (Boolean) booleanObject;
+        }
+        return null;
+    }
+
     @Override
     public final TmfModelResponse<ITmfXyModel> fetchXY(Map<String, Object> fetchParameters, @Nullable IProgressMonitor monitor) {
         A module = getAnalysisModule();
@@ -86,6 +103,15 @@ public abstract class AbstractTreeCommonXDataProvider<A extends TmfStateSystemAn
 
         ITmfStateSystem ss = Objects.requireNonNull(module.getStateSystem(),
                 "Statesystem should have been verified by verifyParameters"); //$NON-NLS-1$
+
+        Boolean wait = extractBoolean(fetchParameters, "wait");
+        if (wait != null && wait) {
+            ss.waitUntilBuilt();
+            if (ss.isCancelled() || (monitor != null && monitor.isCanceled())) {
+                return TmfXyResponseFactory.createCancelledResponse(CommonStatusMessage.TASK_CANCELLED);
+            }
+        }
+
         long currentEnd = ss.getCurrentEndTime();
         boolean complete = ss.waitUntilBuilt(0) || filter.getEnd() <= currentEnd;
 

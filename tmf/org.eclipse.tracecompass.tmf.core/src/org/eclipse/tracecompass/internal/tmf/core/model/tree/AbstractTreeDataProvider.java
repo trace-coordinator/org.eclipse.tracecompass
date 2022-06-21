@@ -263,6 +263,23 @@ public abstract class AbstractTreeDataProvider<A extends TmfStateSystemAnalysisM
         return times;
     }
 
+    /**
+     * Extract boolean value from a map of parameters
+     *
+     * @param parameters
+     *            Map of parameters
+     * @param key
+     *            Parameter key for the value to extract
+     * @return boolean value for this key or null if it fails to extract
+     */
+    private static @Nullable Boolean extractBoolean(Map<String, Object> parameters, String key) {
+        Object booleanObject = parameters.get(key);
+        if (booleanObject instanceof Boolean) {
+            return (Boolean) booleanObject;
+        }
+        return null;
+    }
+
     @Override
     public final TmfModelResponse<TmfTreeModel<M>> fetchTree(Map<String, Object> fetchParameters, @Nullable IProgressMonitor monitor) {
         fLock.readLock().lock();
@@ -286,7 +303,18 @@ public abstract class AbstractTreeDataProvider<A extends TmfStateSystemAnalysisM
             return new TmfModelResponse<>(null, ITmfResponse.Status.FAILED, CommonStatusMessage.STATE_SYSTEM_FAILED);
         }
 
-        boolean complete = ss.waitUntilBuilt(0);
+        boolean complete;
+        Boolean wait = extractBoolean(fetchParameters, "wait");
+        if (wait != null && wait) {
+            ss.waitUntilBuilt();
+            complete = true;
+            if (ss.isCancelled() || (monitor != null && monitor.isCanceled())) {
+                return new TmfModelResponse<>(null, ITmfResponse.Status.CANCELLED,
+                        CommonStatusMessage.TASK_CANCELLED);
+            }
+        } else {
+            complete = ss.waitUntilBuilt(0);
+        }
         try (FlowScopeLog scope = new FlowScopeLogBuilder(LOGGER, Level.FINE, "AbstractTreeDataProvider#fetchTree") //$NON-NLS-1$
                 .setCategory(getClass().getSimpleName()).build()) {
             TmfTreeModel<M> tree = null;
